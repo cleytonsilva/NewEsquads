@@ -15,7 +15,7 @@
 
 ## Project Overview
 
-**Esquads Dashboard** is a comprehensive online learning management system (LMS) that provides a dual-interface platform for both administrators and students. The system features AI-powered course creation, advanced WYSIWYG editing capabilities, real-time analytics, and an immersive learning experience.
+**Esquads Dashboard** is a comprehensive online learning management system (LMS) that provides a dual-interface platform for both administrators and students. The system features AI-powered course creation, advanced WYSIWYG editing capabilities, real-taime analytics, and an immersive learning experience.
 
 ### 🎯 Goals
 - **Streamlined Course Creation**: AI-assisted course generation with intuitive editing tools
@@ -591,6 +591,79 @@ interface AuthContextType {
 \`\`\`
 
 ---
+
+## Backend Integration
+
+### 🔧 Setup Instructions
+
+#### 1. Backend Configuration
+The project now includes a NestJS backend that connects to Supabase. Follow these steps:
+
+1. **Navigate to the backend directory**:
+   ```bash
+   cd backend
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**:
+   Create a `.env` file in the backend directory:
+   ```env
+   SUPABASE_URL=your_supabase_project_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
+   JWT_SECRET=your_jwt_secret
+   OPENROUTER_API_KEY=your_openrouter_api_key
+   GROQ_API_KEY=your_groq_api_key
+   PORT=3000
+   ```
+
+4. **Start the backend server**:
+   ```bash
+   npm run start:dev
+   ```
+
+#### 2. Frontend Configuration
+
+1. **Configure environment variables**:
+   Copy `.env.example` to `.env.local` and update:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:3000
+   ```
+
+2. **Install frontend dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+
+### 🔄 API Integration Status
+
+#### ✅ Completed Integrations
+- **Authentication**: Real login/logout with Supabase Auth
+- **Course Management**: CRUD operations for courses
+- **AI Course Generation**: Integration with OpenRouter/Groq
+- **Student Enrollment**: Course enrollment and progress tracking
+- **Course Content**: Dynamic content loading from database
+
+#### 🔧 Backend Endpoints
+- `POST /auth/login` - User authentication
+- `POST /auth/register` - User registration
+- `GET /auth/me` - Get current user
+- `GET /courses` - List all courses
+- `GET /courses/enrolled` - Get enrolled courses for student
+- `GET /courses/:id` - Get course details
+- `GET /courses/:id/content` - Get course content with modules/lessons
+- `POST /courses` - Create new course
+- `PATCH /courses/:id` - Update course
+- `DELETE /courses/:id` - Delete course
+- `POST /ai/generate-course` - Generate course with AI
 
 ## Getting Started
 

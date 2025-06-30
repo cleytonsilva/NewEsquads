@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -33,8 +33,60 @@ export function StudentMiniCourses() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedLevel, setSelectedLevel] = useState("all")
+  const [courses, setCourses] = useState<Course[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const courses: Course[] = [
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  useEffect(() => {
+    fetchEnrolledCourses()
+  }, [])
+
+  const fetchEnrolledCourses = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/courses/enrolled`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const coursesData = await response.json()
+        // Transform backend data to match frontend interface
+        const transformedCourses = coursesData.map((course: any) => ({
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          thumbnail: course.thumbnail_url || '/placeholder.svg',
+          instructor: course.created_by_name || 'Instrutor',
+          duration: `${Math.floor(course.estimated_duration / 60)}h ${course.estimated_duration % 60}m`,
+          studentsCount: course.students_count || 0,
+          rating: course.rating || 4.5,
+          level: course.difficulty_level === 'beginner' ? 'Beginner' : 
+                 course.difficulty_level === 'intermediate' ? 'Intermediate' : 'Advanced',
+          category: course.category,
+          progress: course.progress || 0,
+          status: course.progress === 0 ? 'not-started' : 
+                  course.progress === 100 ? 'completed' : 'in-progress',
+          isBookmarked: course.is_bookmarked || false,
+          tags: course.tags || [],
+          lastAccessed: course.last_accessed || 'Nunca acessado'
+        }))
+        setCourses(transformedCourses)
+      } else {
+        console.error('Failed to fetch enrolled courses')
+      }
+    } catch (error) {
+      console.error('Error fetching enrolled courses:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Mock courses data for fallback (remove this when backend is fully integrated)
+  const mockCourses: Course[] = [
     {
       id: "1",
       title: "Introduction to Basic Technology: Concepts and Applications",
@@ -138,7 +190,10 @@ export function StudentMiniCourses() {
   const categories = ["all", "Technology", "Marketing", "Data Science", "Business", "Design", "Finance"]
   const levels = ["all", "Beginner", "Intermediate", "Advanced"]
 
-  const filteredCourses = courses.filter((course) => {
+  // Use real courses if available, otherwise fallback to mock data
+  const displayCourses = courses.length > 0 ? courses : (isLoading ? [] : mockCourses)
+
+  const filteredCourses = displayCourses.filter((course) => {
     const matchesSearch =
       course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -349,17 +404,26 @@ export function StudentMiniCourses() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-6">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search courses, instructors, or topics..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading your courses...</p>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Search and Filters */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search courses, instructors, or topics..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
             <div className="flex gap-2">
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="w-40">
@@ -386,34 +450,36 @@ export function StudentMiniCourses() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+              </div>
 
-          {/* Results count */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              Showing {filteredCourses.length} of {courses.length} courses
-            </p>
-          </div>
+              {/* Results count */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  Showing {filteredCourses.length} of {displayCourses.length} courses
+                </p>
+              </div>
 
-          {/* Course Grid/List */}
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredCourses.map((course) => (
-                <CourseListItem key={course.id} course={course} />
-              ))}
-            </div>
+              {/* Course Grid/List */}
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredCourses.map((course) => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredCourses.map((course) => (
+                    <CourseListItem key={course.id} course={course} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
         <TabsContent value="in-progress" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses
+            {displayCourses
               .filter((course) => course.status === "in-progress")
               .map((course) => (
                 <CourseCard key={course.id} course={course} />
@@ -423,7 +489,7 @@ export function StudentMiniCourses() {
 
         <TabsContent value="completed" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses
+            {displayCourses
               .filter((course) => course.status === "completed")
               .map((course) => (
                 <CourseCard key={course.id} course={course} />
@@ -433,7 +499,7 @@ export function StudentMiniCourses() {
 
         <TabsContent value="bookmarked" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses
+            {displayCourses
               .filter((course) => course.isBookmarked)
               .map((course) => (
                 <CourseCard key={course.id} course={course} />

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Search, FolderOpen, Users, BookOpen, BarChart3, Settings, Share2, Eye } from "lucide-react"
 
 interface Collection {
@@ -20,11 +21,24 @@ interface Collection {
   createdDate: string
 }
 
+interface CollectionAnalytics {
+  eligibleLearners: string
+  engagedLearners: number
+  completedLearners: number
+  learnersWithBadges: number
+  learnersWithCertificates: number
+  averageSuccessScore: number
+}
+
 export function Collections() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [sortBy, setSortBy] = useState("newest")
 
-  const collections: Collection[] = [
+  // Dados mockados como fallback
+  const mockCollections: Collection[] = [
     {
       id: "1",
       title: "Blue Squad",
@@ -60,11 +74,64 @@ export function Collections() {
     },
   ]
 
-  const filteredCollections = collections.filter(
-    (collection) =>
-      collection.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      collection.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  useEffect(() => {
+    const fetchCollections = async () => {
+      try {
+        setIsLoading(true)
+        const token = localStorage.getItem('auth_token')
+        
+        if (!token) {
+          // Usar dados mockados se não houver token
+          setCollections(mockCollections)
+          setIsLoading(false)
+          return
+        }
+
+        const response = await fetch('/api/collections', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setCollections(data)
+        } else {
+          // Fallback para dados mockados em caso de erro
+          setCollections(mockCollections)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar coleções:', error)
+        // Fallback para dados mockados em caso de erro
+        setCollections(mockCollections)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCollections()
+  }, [])
+
+  const filteredCollections = collections
+    .filter(
+      (collection) =>
+        collection.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        collection.description.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'oldest':
+          return new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime()
+        case 'name':
+          return a.title.localeCompare(b.title)
+        case 'courses':
+          return b.coursesCount - a.coursesCount
+        case 'newest':
+        default:
+          return new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()
+      }
+    })
 
   if (selectedCollection) {
     return <CollectionDetail collection={selectedCollection} onBack={() => setSelectedCollection(null)} />
@@ -95,7 +162,7 @@ export function Collections() {
             className="pl-10"
           />
         </div>
-        <Select defaultValue="newest">
+        <Select value={sortBy} onValueChange={setSortBy} disabled={isLoading}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Created Date (Newest)" />
           </SelectTrigger>
@@ -111,7 +178,42 @@ export function Collections() {
       {/* Collections Grid */}
       {filteredCollections.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCollections.map((collection) => (
+        {isLoading ? (
+          // Esqueletos de carregamento
+          Array.from({ length: 6 }).map((_, index) => (
+            <Card key={index} className="overflow-hidden">
+              <div className="relative">
+                <Skeleton className="h-32 w-full" />
+                <div className="absolute top-2 right-2">
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              </div>
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+                <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-1">
+                      <Skeleton className="h-4 w-4" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Skeleton className="h-4 w-4" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-8 w-16" />
+                </div>
+                <div className="mt-2">
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : filteredCollections.map((collection) => (
             <Card key={collection.id} className="group hover:shadow-lg transition-all duration-200 cursor-pointer">
               <div className="relative">
                 <div
@@ -194,6 +296,68 @@ export function Collections() {
 // Collection Detail Component (matches the analytics view from the reference image)
 function CollectionDetail({ collection, onBack }: { collection: Collection; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState("mini-courses")
+  const [analytics, setAnalytics] = useState<CollectionAnalytics | null>(null)
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true)
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setIsLoadingAnalytics(true)
+        const token = localStorage.getItem('auth_token')
+        
+        if (!token) {
+          // Usar dados mockados se não houver token
+          setAnalytics({
+            eligibleLearners: "1.2k",
+            engagedLearners: 856,
+            completedLearners: 432,
+            learnersWithBadges: 298,
+            learnersWithCertificates: 156,
+            averageSuccessScore: 87.5
+          })
+          setIsLoadingAnalytics(false)
+          return
+        }
+
+        const response = await fetch(`/api/collections/${collection.id}/analytics`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setAnalytics(data)
+        } else {
+          // Fallback para dados mockados
+          setAnalytics({
+            eligibleLearners: "1.2k",
+            engagedLearners: 856,
+            completedLearners: 432,
+            learnersWithBadges: 298,
+            learnersWithCertificates: 156,
+            averageSuccessScore: 87.5
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao buscar analytics da coleção:', error)
+        // Fallback para dados mockados
+        setAnalytics({
+          eligibleLearners: "1.2k",
+          engagedLearners: 856,
+          completedLearners: 432,
+          learnersWithBadges: 298,
+          learnersWithCertificates: 156,
+          averageSuccessScore: 87.5
+        })
+      } finally {
+        setIsLoadingAnalytics(false)
+      }
+    }
+
+    fetchAnalytics()
+  }, [collection.id])
 
   const tabs = [
     { id: "mini-courses", label: "Mini courses" },
@@ -204,14 +368,14 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
     { id: "share", label: "Share" },
   ]
 
-  const analyticsData = [
-    { label: "Eligible learners", value: "All", icon: BarChart3, color: "text-blue-600" },
-    { label: "Engaged learners", value: "5", icon: BarChart3, color: "text-blue-600" },
-    { label: "Learners who completed", value: "0", icon: BarChart3, color: "text-green-600" },
-    { label: "Learners with badges", value: "1", icon: BarChart3, color: "text-gray-400" },
-    { label: "Learners with certificates", value: "0", icon: BarChart3, color: "text-gray-400" },
-    { label: "Average success score", value: "66.67 %", icon: BarChart3, color: "text-gray-400" },
-  ]
+  const analyticsData = analytics ? [
+    { label: "Eligible learners", value: analytics.eligibleLearners, icon: Users, color: "text-blue-500" },
+    { label: "Engaged learners", value: analytics.engagedLearners.toString(), icon: TrendingUp, color: "text-green-500" },
+    { label: "Learners who completed", value: analytics.completedLearners.toString(), icon: CheckCircle, color: "text-purple-500" },
+    { label: "Learners with badges", value: analytics.learnersWithBadges.toString(), icon: Award, color: "text-orange-500" },
+    { label: "Learners with certificates", value: analytics.learnersWithCertificates.toString(), icon: FileText, color: "text-red-500" },
+    { label: "Average success score", value: `${analytics.averageSuccessScore}%`, icon: BarChart3, color: "text-indigo-500" },
+  ] : []
 
   return (
     <div className="space-y-6">
@@ -275,19 +439,36 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
 
           {/* Analytics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {analyticsData.map((metric, index) => (
-              <Card key={index}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{metric.label}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+            {isLoadingAnalytics ? (
+              // Esqueletos de carregamento para analytics
+              Array.from({ length: 6 }).map((_, index) => (
+                <Card key={index}>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Skeleton className="h-4 w-24 mb-2" />
+                        <Skeleton className="h-8 w-16" />
+                      </div>
+                      <Skeleton className="h-6 w-6" />
                     </div>
-                    <metric.icon className={`w-6 h-6 ${metric.color}`} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            ) : analytics ? (
+              analyticsData.map((metric, index) => (
+                <Card key={index}>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">{metric.label}</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+                      </div>
+                      <metric.icon className={`w-6 h-6 ${metric.color}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : null}
           </div>
         </div>
       )}

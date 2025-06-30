@@ -18,68 +18,80 @@ interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<void>
   logout: () => void
-  switchRole: (role: UserRole) => void
   isLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Mock user data - in real app, this would come from your auth service
-  const mockUsers = {
-    student: {
-      id: "student-1",
-      name: "Cleyton Ferreira",
-      email: "cleyton@student.com",
-      role: "student" as UserRole,
-      avatar: "CF",
-      joinDate: "2024-01-15",
-      lastLogin: "2025-01-18",
-    },
-    administrator: {
-      id: "admin-1",
-      name: "Sarah Johnson",
-      email: "sarah@admin.com",
-      role: "administrator" as UserRole,
-      avatar: "SJ",
-      joinDate: "2023-06-10",
-      lastLogin: "2025-01-18",
-    },
-  }
-
   useEffect(() => {
-    // Simulate loading user from localStorage or API
-    const savedRole = localStorage.getItem("userRole") as UserRole
-    if (savedRole && mockUsers[savedRole]) {
-      setUser(mockUsers[savedRole])
-    } else {
-      // Default to student for demo
-      setUser(mockUsers.student)
-      localStorage.setItem("userRole", "student")
-    }
-    setIsLoading(false)
+    // Check if user is already logged in
+    checkAuthStatus()
   }, [])
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+      } else {
+        localStorage.removeItem('authToken')
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error)
+      localStorage.removeItem('authToken')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const login = async (email: string, password: string) => {
     setIsLoading(true)
-    // Mock login logic
-    const role = email.includes("admin") ? "administrator" : "student"
-    setUser(mockUsers[role])
-    localStorage.setItem("userRole", role)
-    setIsLoading(false)
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
+
+      if (!response.ok) {
+        throw new Error('Login failed')
+      }
+
+      const data = await response.json()
+      localStorage.setItem('authToken', data.access_token)
+      setUser(data.user)
+    } catch (error) {
+      console.error('Login error:', error)
+      throw error
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const logout = () => {
     setUser(null)
-    localStorage.removeItem("userRole")
-  }
-
-  const switchRole = (role: UserRole) => {
-    setUser(mockUsers[role])
-    localStorage.setItem("userRole", role)
+    localStorage.removeItem('authToken')
   }
 
   return <AuthContext.Provider value={{ user, login, logout, switchRole, isLoading }}>{children}</AuthContext.Provider>

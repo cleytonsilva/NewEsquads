@@ -13,6 +13,33 @@ interface Course {
   thumbnail: string
 }
 
+interface CourseModule {
+  id: number
+  title: string
+  type: string
+  lessons: Lesson[]
+}
+
+interface Lesson {
+  id: number
+  title: string
+  completed: boolean
+  content: {
+    title: string
+    image?: string
+    sections: ContentSection[]
+  }
+}
+
+interface ContentSection {
+  title: string
+  content: string
+  list?: {
+    title: string
+    description: string
+  }[]
+}
+
 interface FullScreenCourseViewerProps {
   course: Course
   onClose: () => void
@@ -21,9 +48,61 @@ interface FullScreenCourseViewerProps {
 export function FullScreenCourseViewer({ course, onClose }: FullScreenCourseViewerProps) {
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [courseStructure, setCourseStructure] = useState<CourseModule[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock course structure - in real app, this would come from API
-  const courseStructure = [
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  useEffect(() => {
+    fetchCourseContent()
+  }, [course.id])
+
+  const fetchCourseContent = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/courses/${course.id}/content`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const courseData = await response.json()
+        // Transform backend data to match frontend interface
+        const transformedStructure = courseData.modules?.map((module: any) => ({
+          id: module.id,
+          title: module.title,
+          type: 'section',
+          lessons: module.lessons?.map((lesson: any) => ({
+            id: lesson.id,
+            title: lesson.title,
+            completed: lesson.completed || false,
+            content: {
+              title: lesson.title,
+              image: lesson.image_url,
+              sections: lesson.content ? JSON.parse(lesson.content) : []
+            }
+          })) || []
+        })) || []
+        
+        setCourseStructure(transformedStructure)
+      } else {
+        console.error('Failed to fetch course content')
+        // Fallback to mock data if API fails
+        setCourseStructure(mockCourseStructure)
+      }
+    } catch (error) {
+      console.error('Error fetching course content:', error)
+      // Fallback to mock data if API fails
+      setCourseStructure(mockCourseStructure)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Mock course structure for fallback
+  const mockCourseStructure = [
     {
       id: 1,
       title: "Introduction to Basic Technology",
@@ -228,6 +307,17 @@ export function FullScreenCourseViewer({ course, onClose }: FullScreenCourseView
 
   const handleLessonClick = (lessonIndex: number) => {
     setCurrentLessonIndex(lessonIndex)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando conteúdo do curso...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

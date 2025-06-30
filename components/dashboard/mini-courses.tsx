@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,7 +15,8 @@ import { DeliveryOptions } from "../course-delivery/delivery-options"
 
 export function MiniCourses() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [hasCourses, setHasCourses] = useState(true) // Toggle this to show/hide courses
+  const [courses, setCourses] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [showAICreator, setShowAICreator] = useState(false)
   const [selectedCourseForEdit, setSelectedCourseForEdit] = useState<any>(null)
   const [showWYSIWYGEditor, setShowWYSIWYGEditor] = useState(false)
@@ -24,20 +25,39 @@ export function MiniCourses() {
   const [showAIAssistant, setShowAIAssistant] = useState(false)
   const [selectedCourseForDelivery, setSelectedCourseForDelivery] = useState<any>(null)
 
-  const courses = [
-    {
-      id: 1,
-      title: "Introduction to Basic Technology: Concepts and Applications",
-      image: "/placeholder.svg?height=200&width=300",
-      date: "June 18, 2025",
-      type: "MINI COURSE",
-    },
-  ]
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
+  useEffect(() => {
+    fetchCourses()
+  }, [])
+
+  const fetchCourses = async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`${API_BASE_URL}/courses`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const coursesData = await response.json()
+        setCourses(coursesData)
+      } else {
+        console.error('Failed to fetch courses')
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleCourseCreated = (courseData: any) => {
     console.log("Course created:", courseData)
-    // Add the new course to the list
-    setHasCourses(true)
+    // Refresh the courses list
+    fetchCourses()
   }
 
   return (
@@ -75,13 +95,17 @@ export function MiniCourses() {
       </div>
 
       {/* Course Grid or Empty State */}
-      {hasCourses ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center py-16">
+          <div className="text-gray-500">Carregando cursos...</div>
+        </div>
+      ) : courses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => (
             <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-video relative">
                 <img
-                  src={course.image || "/placeholder.svg"}
+                  src={course.thumbnail_url || "/placeholder.svg"}
                   alt={course.title}
                   className="w-full h-full object-cover"
                 />
@@ -95,12 +119,16 @@ export function MiniCourses() {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary" className="text-xs">
-                    {course.type}
+                    MINI COURSE
+                  </Badge>
+                  <Badge variant={course.is_published ? "default" : "outline"} className="text-xs">
+                    {course.is_published ? "Publicado" : "Rascunho"}
                   </Badge>
                 </div>
                 <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">{course.title}</h3>
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2">{course.description}</p>
                 <div className="flex items-center justify-between text-sm text-gray-500">
-                  <span>{course.date}</span>
+                  <span>{new Date(course.created_at).toLocaleDateString('pt-BR')}</span>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm">
                       <BarChart3 className="w-4 h-4" />

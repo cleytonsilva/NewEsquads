@@ -139,19 +139,52 @@ export function EnhancedAICourseCreator({ onClose, onCourseCreated }: EnhancedAI
 
   const handleGenerate = async () => {
     setIsGenerating(true)
-    // Simulate AI processing
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+    
+    try {
+      const token = localStorage.getItem('authToken')
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+      
+      // Prepare the data for AI generation
+      const aiGenerationData = {
+        method: selectedMethod,
+        language: formData.language,
+        focus: formData.focus,
+        targetAudience: formData.targetAudience,
+        tone: formData.tone,
+        description: formData.description,
+        quizQuestions: formData.quizQuestions,
+        feedbackQuestions: formData.feedbackQuestions,
+        includeInteractiveElements: formData.includeInteractiveElements,
+        includeTimeline: formData.includeTimeline,
+        includeMatchingGame: formData.includeMatchingGame,
+        generateImages: formData.generateImages,
+        antiHallucination: formData.antiHallucination,
+        fileName: uploadedFile?.name
+      }
 
-    const courseData = {
-      method: selectedMethod,
-      settings: formData,
-      file: uploadedFile?.name,
-      timestamp: new Date().toISOString(),
+      const response = await fetch(`${API_BASE_URL}/ai/generate-course`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(aiGenerationData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate course')
+      }
+
+      const courseData = await response.json()
+      
+      setIsGenerating(false)
+      onCourseCreated?.(courseData)
+      onClose()
+    } catch (error) {
+      console.error('Error generating course:', error)
+      setIsGenerating(false)
+      // You might want to show an error message to the user here
     }
-
-    setIsGenerating(false)
-    onCourseCreated?.(courseData)
-    onClose()
   }
 
   const renderMethodSelection = () => (
